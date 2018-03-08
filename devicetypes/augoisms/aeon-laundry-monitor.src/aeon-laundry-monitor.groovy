@@ -1,74 +1,17 @@
 /**
  *
- *  Aeon Smart Energy Switch 6 (gen5)
+ *  Laundry Status - Aeon Smart Energy Switch 6 (gen5)
  *
- *  Copyright 2017 jbisson
- *  based on James P ('elasticdev'), Mr Lucky, lg kahn code.
+ *  Interprets the current wattage into as status of idle, running, or finished
  *
+ *  heavily based on jbisson's Aeon Smart Energy Switch 6 dh
+ *  https://github.com/jbisson/SmartThingsPublic-/blob/master/devicetypes/jbisson/aeon-labs-smart-switch-6-gen5.src/aeon-labs-smart-switch-6-gen5.groovy
  *
- *  The brightness intensity only works in energy mode (does not work in nightlight mode)
- *  You can only change the led color in nightlight mode
- *
- *  The energy cost (current) represent the amount of money you'll pay if the current load stay the same all the time
- *  vs
- *  The energy cost (cumulative) is the amount of money you'll pay based on the amount of energy used between now and
- *  the last time you did a reset. You can clear this counter by hitting the reset icon.
- *  This will take into account the variable aspect of your energy consumption.
- *
- *
- *
- * If you are pairing in secure inclusive mode, make sure you turn it on in the config page.
- *
- *
- *  Revision History
- *  ==============================================
- *  2017-02-24 Version 5.1.4  Bug fixed around getDeviceInfo
- *  2017-01-21 Version 5.1.0  Added energy meter cost per hours/week/month/year feature, fixed display issues
- *  2016-11-13 Version 5.0.0  Added Z-Wave secure inclusion support (note that you'll need to manually set it up during configuration)
- *  2016-11-12 Version 4.0.5  Added AT&T rebrand fingerprint + added force refresh report notification update preference
- *  2016-08-31 Version 4.0.4  Fixed fingerprint number.
- *  2016-08-15 Version 4.0.3  Fixed setcolor logic when using the Color Control capability
- *  2016-08-12 Version 4.0.2  Added version in preference setting
- *  2016-08-11 Version 4.0.1  Added switch disabled visual on the main tile, added firmware version
- *  2016-08-11 Version 4.0.0  Added log preference, enable/disable switch preference, added dev documentation, changed fingerprint
- *  2016-08-08 Version 3.0.1  Adapt device handler to support gen5 version 3.1
- *  2016-08-08 Version 3.0
- *  2015-09-01 version 2 - lg kahn
- *
- *
- *  Developer's Notes
- *  Raw Description	0 0 0x1001 0 0 0 11 0x5E 0x25 0x26 0x33 0x70 0x27 0x32 0x81 0x85 0x59 0x72 0x86 0x7A 0x73 0xEF 0x5A 0x82
- *  Z-Wave Supported Command Classes:
- *  Code Name					Version
- *  ==== ======================================	=======
- *  0x5E ??
- *  0x25 COMMAND_CLASS_SWITCH_BINARY          V1                 Implemented
- *  0x26 COMMAND_CLASS_SWITCH_MULTILEVEL      V3 (new in gen5)   Implemented - not used
- *  0x32 COMMAND_CLASS_METER                  V3                 Implemented
- *  0x33 COMMAND_CLASS_COLOR                  V1 (new in gen5)   Not implemented
- *  0x70 COMMAND_CLASS_CONFIGURATION          V1                 Implemented
- *  0x27 COMMAND_CLASS_SWITCH_ALL             V1                 Not implemented
- *  0x81 COMMAND_CLASS_CLOCK                  V1 (new in gen5)   Not implemented
- *  0x85 COMMAND_CLASS_ASSOCIATION            V2                 Not implemented
- *  0x72 COMMAND_CLASS_MANUFACTURER_SPECIFIC  V2                 Implemented
- *  0x59 COMMAND_CLASS_ASSOCIATION_GRP_INFO   V1                 Not implemented
- *  0x86 COMMAND_CLASS_VERSION                V2                 Implemented
- *  0xEF COMMAND_CLASS_MARK                   V1                 Not implemented
- *  0x82 COMMAND_CLASS_HAIL                   V1                 Implemented - not used
- *  0x7A COMMAND_CLASS_FIRMWARE_UPDATE_MD_V2  V2 (new in gen5)   Implemented
- *  0x73 COMMAND_CLASS_POWERLEVEL             V1 (new in gen5)   Not implemented
- *  0x5A COMMAND_CLASS_DEVICE_RESET_LOCALLY   V1 (new in gen5)   Not implemented
- *  0x98 COMMAND_CLASS_SECURITY               V1 (For secure Inclusion) Implemented
  *
  */
 
-def clientVersion() {
-    return "5.1.4"
-}
-
 metadata {
-    definition(name: "Aeon Labs Smart Switch 6", namespace: "jbisson", author: "Jonathan Bisson") {
-        /*capability "Switch"*/
+    definition(name: "Laundry Status", namespace: "augoisms", author: "Justin Walker") {
         capability "Polling"
         capability "Power Meter"
         capability "Energy Meter"
@@ -77,15 +20,8 @@ metadata {
         capability "Sensor"
         capability "Actuator"
         capability "Configuration"
-        capability "Color Control"
-
-        command "energy"
-        command "momentary"
-        command "nightLight"
 
         command "reset"
-        command "factoryReset"
-        command "setBrightnessLevel"
         command "getDeviceInfo"
         command "resetFinished"
 
@@ -93,10 +29,6 @@ metadata {
         attribute "status", "enum", ["idle", "running", "finished"]
         attribute "wasRunning", "enum", ["true", "false"]
 
-        // Base on https://community.smartthings.com/t/new-z-wave-fingerprint-format/48204
-        fingerprint mfr: "0086", prod: "0103", model: "0060" // Aeon brand
-        fingerprint mfr: "0134", prod: "0259", model: "0096" // AT&T rebrand
-        fingerprint type: "1001", cc: "5E,25,26,33,70,27,32,81,85,59,72,86,7A,73", ccOut: "5A,82"
     }
 
     tiles {
@@ -108,89 +40,41 @@ metadata {
 		valueTile("power", "device.power") {
 			state "default", label:'${currentValue} W'
 		}
-		valueTile("energy", "device.energy") {
-			state "default", label:'${currentValue} kWh'
-		}
-        /*
-        standardTile("deviceMode", "deviceMode", canChangeIcon: true, canChangeBackground: true, width: 2, height: 2) {
-            state "energy", label: 'energy', action: "momentary", icon: "http://mail.lgk.com/aeonv6orange.png"
-            state "momentary", label: 'momentary', action: "nightLight", icon: "http://mail.lgk.com/aeonv6white.png"
-            state "nightLight", label: 'NightLight', action: "energy", icon: "http://mail.lgk.com/aeonv6blue.png"
-        }
-		*/
-        valueTile("power", "device.power") {
-            state "default", label: '${currentValue} W'
-        }
-
-        valueTile("energy", "device.energy", decoration: "flat") {
-            state "default", label: '${currentValue} kWh'
-        }
-
         valueTile("amperage", "device.amperage") {
             state "default", label: '${currentValue} A'
         }
-
         valueTile("voltage", "device.voltage") {
             state "default", label: '${currentValue} v'
         }
-        
         standardTile("refresh", "device.switch", decoration: "flat") {
             state "default", label: "", action: "refresh.refresh", icon: "st.secondary.refresh"
         }
 
-        controlTile("levelSliderControl", "device.brightnessLevel", "slider", width: 2, height: 1) {
-            state "level", action: "switch level.setLevel"
-        }
-
-        valueTile("levelSliderTxt", "device.brightnessLevel", decoration: "flat") {
-            state "brightnessLevel", label: '${currentValue} %'
-        }
-		/*
-        standardTile("reset", "device.energy", decoration: "flat") {
-            state "default", label: 'reset', action: "reset"
-        }
-
-        controlTile("rgbSelector", "device.color", "color", height: 2, width: 2) {
-            state "color", action: "setColor"
-        }
-
-        standardTile("configure", "device.power", inactiveLabel: false, decoration: "flat", width: 1, height: 1) {
-            state "configure", label: '', action: "configuration.configure", icon: "st.secondary.configure"
-        }
-        */
-
-        main(["status", "power", "energy", "voltage", "amperage"])
-        details(["status", "deviceMode", "power", "energy", "amperage", "voltage", "refresh",
-                 "levelSliderControl", "levelSliderTxt", "rgbSelector", "configure",  "reset"])
+        main(["status"])
+        details(["status", "power", "amperage", "voltage", "refresh"])
     }
 }
 
 preferences {
-    input title: "", description: "Aeon Multiswitch 6 (gen5) v${clientVersion()}", displayDuringSetup: true, type: "paragraph", element: "paragraph"
     
     input title: "", description: "State related options", type: "paragraph", element: "paragraph"
-    input name: "wattThreshold", type: "number", title: "Minimum watt value to trigger state\n", defaultValue: "5", displayDuringSetup: true
-    input name: "minTimeOff", type: "number", title: "Minimum time (min) watts need to stay below the threshold\n", defaultValue: "1", displayDuringSetup: true
+    input name: "wattThreshold", type: "number", title: "Minimum watt value to trigger state\n", defaultValue: "10", displayDuringSetup: true
+    input name: "minTimeOff", type: "number", title: "Minimum time (min) watts need to stay below the threshold\n", defaultValue: "2", displayDuringSetup: true
 
     input title: "", description: "Device Options", type: "paragraph", element: "paragraph"
-    input name: "switchDisabled", type: "bool", title: "Disable switch on/off\n", defaultValue: "false", displayDuringSetup: true
-    input name: "refreshInterval", type: "number", title: "Refresh interval \n\nSet the refresh time interval (secondes) between each reports.\n", defaultValue: "300", displayDuringSetup: true
-    input name: "switchAll", type: "enum", title: "Respond to switch all?\n", description: "How does switch respond to the 'Switch All' command", options: ["Disabled", "Off Enabled", "On Enabled", "On and Off Enabled"], defaultValue: "On and Off Enabled", displayDuringSetup: true, required: false
+    input name: "refreshInterval", type: "number", title: "Refresh interval \n\nSet the refresh time interval (seconds) between each reports.\n", defaultValue: "300", displayDuringSetup: true
     input name: "forceStateChangeOnReport", type: "bool", title: "Force state change when receiving a report ? If true, you'll always get notification even if report data doesn't change.\n", defaultValue: "false", displayDuringSetup: true
     input name: "secureInclusionOverride", type: "bool", title: "Is this device in secure inclusive mode?\n", defaultValue: "false", displayDuringSetup: true
 
-    input name: "onlySendReportIfValueChange", type: "bool", title: "Only send report if value change (either in terms of wattage or a %)\n", defaultValue: "false", displayDuringSetup: true
+    input name: "onlySendReportIfValueChange", type: "bool", title: "Only send report if value change (either in terms of wattage or a %)\n", defaultValue: "true", displayDuringSetup: true
     input title: "", description: "The next two parameters are only working if the 'only send report' is set to true.", type: "paragraph", element: "paragraph", displayDuringSetup: true
 
-    input name: "minimumChangeWatts", type: "number", title: "Minimum change in wattage for a report to be sent (0 - 100).\n", defaultValue: "25", range: "0..100", displayDuringSetup: true
+    input name: "minimumChangeWatts", type: "number", title: "Minimum change in wattage for a report to be sent (0 - 100).\n", defaultValue: "2", range: "0..100", displayDuringSetup: true
     input name: "minimumChangePercent", type: "number", title: "Minimum change in percentage for a report to be sent (0 - 60000)\n", defaultValue: "5", range: "0..60000", displayDuringSetup: true
-
-    input name: "costPerKwh", type: "decimal", title: "Cost per kWh (Used for energy cost /per kWh)\n", defaultValue: "0.12", displayDuringSetup: true
 
     input name: "includeWattInReport", type: "bool", title: "Include energy meter (W) in report?\n", defaultValue: "true", displayDuringSetup: true
     input name: "includeVoltageInReport", type: "bool", title: "Include voltage (V) in report?\n", defaultValue: "true", displayDuringSetup: true
     input name: "includeCurrentInReport", type: "bool", title: "Include current (A) in report?\n", defaultValue: "true", displayDuringSetup: true
-    input name: "includeCurrentUsageInReport", type: "bool", title: "Include current usage (kWh) in report?\n", defaultValue: "true", displayDuringSetup: true
 
     input title: "", description: "Logging", type: "paragraph", element: "paragraph"
     input name: "isLogLevelTrace", type: "bool", title: "Show trace log level ?\n", defaultValue: "false", displayDuringSetup: true
@@ -224,7 +108,7 @@ def parse(String description) {
         }
     }
 
-    updateStatus()
+
     result
 }
 
@@ -333,32 +217,19 @@ def zwaveEvent(physicalgraph.zwave.commands.meterv3.MeterReport cmd) {
         if (cmd.scale == 0) {
             logDebug " got kwh $cmd.scaledMeterValue"
 
-            //BigDecimal costDecimal = ( costPerKwh as BigDecimal )
-            //def batteryRunTimeHours = getBatteryRuntimeInHours()
             eventList.push(internalCreateEvent([name: "energy", value: cmd.scaledMeterValue, unit: "kWh"]));
-			/*
-            eventList.push(internalCreateEvent([name: "cumulativeEnergyCostTxt", value: getBatteryRuntime()]));
-            eventList.push(internalCreateEvent([name: "cumulativeEnergyCostHour", value: String.format("%5.2f", cmd.scaledMeterValue / batteryRunTimeHours * costDecimal)]));
-            eventList.push(internalCreateEvent([name: "cumulativeEnergyCostWeek", value: String.format("%5.2f", cmd.scaledMeterValue / batteryRunTimeHours * costDecimal * 24 * 7)]));
-            eventList.push(internalCreateEvent([name: "cumulativeEnergyCostMonth", value: String.format("%5.2f", cmd.scaledMeterValue / batteryRunTimeHours * costDecimal * 24 * 30)]));
-            eventList.push(internalCreateEvent([name: "cumulativeEnergyCostYear", value: String.format("%5.2f", cmd.scaledMeterValue / batteryRunTimeHours * costDecimal * 24 * 360)]));
-            */
+
         } else if (cmd.scale == 1) {
             logDebug " got kVAh $cmd.scaledMeterValue"
             eventList.push(internalCreateEvent([name: "energy", value: cmd.scaledMeterValue, unit: "kVAh"]));
         } else if (cmd.scale == 2) {
             logDebug " got wattage $cmd.scaledMeterValue"
             eventList.push(internalCreateEvent([name: "power", value: Math.round(cmd.scaledMeterValue), unit: "W"]));
+            
             // update status based on current watts
+            // ------------------------------------
             eventList.push(internalCreateEvent([name: "status", value: parseWattsForStatus(Math.round(cmd.scaledMeterValue))]));
             
-            /*
-            BigDecimal costDecimal = ( costPerKwh as BigDecimal )
-            eventList.push(internalCreateEvent([name: "currentEnergyCostHour", value: String.format("%5.2f", (cmd.scaledMeterValue / 1000) * costDecimal)]));
-            eventList.push(internalCreateEvent([name: "currentEnergyCostWeek", value: String.format("%5.2f", (cmd.scaledMeterValue / 1000) * 24 * 7 * costDecimal)]));
-            eventList.push(internalCreateEvent([name: "currentEnergyCostMonth", value: String.format("%5.2f", (cmd.scaledMeterValue / 1000) * 24 * 30 * costDecimal)]));
-            eventList.push(internalCreateEvent([name: "currentEnergyCostYear", value: String.format("%5.2f", (cmd.scaledMeterValue / 1000) * 24 * 360 * costDecimal)]));
-            */
         } else if (cmd.scale == 4) { // Volts
             logDebug " got voltage $cmd.scaledMeterValue"
             eventList.push(internalCreateEvent([name: "voltage", value: Math.round(cmd.scaledMeterValue), unit: "V"]));
@@ -566,17 +437,12 @@ def configure() {
 
     updateDeviceInfo()
 
-    def switchAllMode = physicalgraph.zwave.commands.switchallv1.SwitchAllSet.MODE_INCLUDED_IN_THE_ALL_ON_ALL_OFF_FUNCTIONALITY
-    if (switchAll == "Disabled") {
-        switchAllMode = physicalgraph.zwave.commands.switchallv1.SwitchAllSet.MODE_EXCLUDED_FROM_THE_ALL_ON_ALL_OFF_FUNCTIONALITY
-    } else if (switchAll == "Off Enabled") {
-        switchAllMode = physicalgraph.zwave.commands.switchallv1.SwitchAllSet.MODE_EXCLUDED_FROM_THE_ALL_ON_FUNCTIONALITY_BUT_NOT_ALL_OFF
-    } else if (switchAll == "On Enabled") {
-        switchAllMode = physicalgraph.zwave.commands.switchallv1.SwitchAllSet.MODE_EXCLUDED_FROM_THE_ALL_OFF_FUNCTIONALITY_BUT_NOT_ALL_ON
-    }
+    def switchAllMode = physicalgraph.zwave.commands.switchallv1.SwitchAllSet.MODE_EXCLUDED_FROM_THE_ALL_ON_ALL_OFF_FUNCTIONALITY // disabled
 
     logTrace "forceStateChangeOnReport value: " + forceStateChangeOnReport
     logTrace "switchAll value: " + switchAll
+    
+    def includeCurrentUsageInReport = false
 
     def reportGroup;
     reportGroup = ("$includeVoltageInReport" == "true" ? 1 : 0)
@@ -586,46 +452,6 @@ def configure() {
 
     log.trace "setting configuration refresh interval: " + new BigInteger("$refreshInterval")
 
-    /***************************************************************
-     Device specific configuration parameters
-     ----------------------------------------------------------------
-     Param   Size    Default Description
-     ------- ------- ------- ----------------------------------------
-     0x03 (3)    1       0   Current Overload Protection. Load will be closed when the Current overrun (US: 15.5A, other country: 16.2A) and the
-     time more than 2 minutes (0=disabled, 1=enabled).
-     0x14 (20)   1       0   Configure the output load status after re-power on (0=last status, 1=always on, 2=always off)
-     0x21 (33)   4           Set the RGB LED color value for testing. alternate rgb color level ie res,blue,green,red ie 00ffffff
-     0x50 (80)   1       0       Enable to send notifications to associated devices in Group 1 when load changes (0=nothing, 1=hail CC, 2=basic CC report)
-     0x51 (81)   1       0       mode 0 - energy, 1 - momentary indicator, 2 - night light
-     0x53 (83)   3       0      hex value ffffff00 .. only night light mode
-     0x54 (84)   1       50       dimmer level 0 -100 (doesn't work in night light mode)
-     0x5A (90)   1       1       Enables/disables parameter 0x5A and 0x5B below
-     0x5B (91)   2       25      The value here represents minimum change in wattage (in terms of wattage) for a REPORT to be sent (default 50W, size 2 bytes).
-     0x5C (92)   1       5      The value here represents minimum change in wattage (in terms of percentage) for a REPORT to be sent (default 10%, size 1 byte).
-     0x65 (101)  4       0x00 00 00 04 Which reports need to send in Report group 1
-     0x66 (102)  4       0x00 00 00 08 Which reports need to send in Report group 2
-     0x67 (103)  4       0       Which reports need to send in Report group 3
-     0x6F (111)  4       0x00 00 02 58 The time interval in seconds for sending Report group 1 (Valid values 0x01-0x7FFFFFFF).
-     0x70 (112)  4       0x00 00 02 58 The time interval in seconds for sending Report group 2 (Valid values 0x01-0x7FFFFFFF).
-     0x71 (113)  4       0x00 00 02 58 The time interval in seconds for sending Report group 3 (Valid values 0x01-0x7FFFFFFF).
-     0xC8 (200)  1       0  Partner ID
-     0xFC (252)  1       0  Enable/disable Configuration Locked (0 =disable, 1 =enable).
-     0xFE (254)  2       0  Device Tag.
-     0xFF (255)  1       N/A     Reset to factory default setting
-
-
-     Configuration Values for parameters 0x65-0x67:
-     BYTE  | 7  6  5  4  3  2  1  0
-     ===============================
-     MSB 0 | 0  0  0  0  0  0  0  0
-     Val 1 | 0  0  0  0  0  0  0  0
-     VAL 2 | 0  0  0  0  0  0  0  0
-     LSB 3 | 0  0  0  0  A  B  C  0
-
-     Bit A - Send Meter REPORT (for kWh) at the group time interval
-     Bit B - Send Meter REPORT (for watt) at the group time interval
-     Bit C - Automatically send(1) or don't send(0) Multilevel Sensor Report Command
-     ***************************************************************/
 
     delayBetween([
             formatCommand(zwave.switchAllV1.switchAllSet(mode: switchAllMode)),
@@ -643,48 +469,13 @@ def configure() {
             formatCommand(zwave.configurationV1.configurationSet(parameterNumber: 0x71, size: 4, scaledConfigurationValue: new BigInteger(0xFFFFF))),
 
             formatCommand(zwave.configurationV1.configurationSet(parameterNumber: 0x3, size: 1, scaledConfigurationValue: 0)),      // Current Overload Protection.
+            
+            formatCommand(zwave.configurationV1.configurationSet(parameterNumber: 0x54, size: 3, configurationValue: [0, 0, 0])), // brightness level 0
+            formatCommand(zwave.configurationV1.configurationSet(parameterNumber: 0x51, size: 1, scaledConfigurationValue: 0)) // set to energy mode
     ], 200)
 }
 
-/**
- *  on - Turns on the switch
- *
- *  Required for the "Switch" capability
- */
-def on() {
-    if (switchDisabled) {
-        logDebug "switch disabled, doing nothing"
-        delayBetween([
-                formatCommand(zwave.switchBinaryV1.switchBinaryGet())
-        ], 200)
-    } else {
-        logDebug "switching it on"
-        delayBetween([
-                formatCommand(zwave.switchBinaryV1.switchBinarySet(switchValue: 0xFF)),
-                formatCommand(zwave.switchBinaryV1.switchBinaryGet())
-        ], 200)
-    }
-}
 
-/**
- *  off - Turns off the switch
- *
- *  Required for the "Switch" capability
- */
-def off() {
-    if (switchDisabled) {
-        logDebug "switch disabled, doing nothing"
-        delayBetween([
-                formatCommand(zwave.switchBinaryV1.switchBinaryGet())
-        ], 200)
-    } else {
-        logDebug "switching it off"
-        delayBetween([
-                formatCommand(zwave.switchBinaryV1.switchBinarySet(switchValue: 0x00)),
-                formatCommand(zwave.switchBinaryV1.switchBinaryGet())
-        ], 200)
-    }
-}
 
 /**
  *  poll - Polls the device
@@ -745,35 +536,6 @@ def refresh() {
     ], 200)
 }
 
-/**
- *  reset - Resets the devices energy usage meter and attempt to reset device
- *
- *  Required for the "Switch Level" capability
- */
-def setLevel(level) {
-    setBrightnessLevel(level)
-}
-
-/**
- *  Sets the color to the passed in maps values
- *
- *  Required for the "Color Control" capability
- */
-def setColor(colormap) {
-    logDebug " in setColor"
-
-    if (colormap.hex == null && colormap.hue) {
-        def hexColor = colorUtil.hslToHex(colormap.hue, colormap.saturation)
-        logDebug " in setColor colormap = $hexColor"
-
-        sendEvent(name: "color", value: hexColor)
-        formatCommand(zwave.configurationV1.configurationSet(parameterNumber: 0x53, size: 3, configurationValue: colorUtil.hexToRgb(hexColor)))
-    } else {
-        logDebug " in setColor: hex =  ${colormap.hex}"
-        sendEvent(name: "color", value: colormap.hex)
-        formatCommand(zwave.configurationV1.configurationSet(parameterNumber: 0x53, size: 3, configurationValue: [colormap.red, colormap.green, colormap.blue]))
-    }
-}
 
 /*******************************************************************************
  * 	Methods                                                                    *
@@ -797,8 +559,6 @@ def installed() {
 def updated() {
     logDebug "updated()"
 
-    updateStatus()
-    //updatePowerStatus(0)
     response(configure())
 }
 
@@ -821,14 +581,6 @@ def reset() {
     ], 200)
 }
 
-def factoryReset() {
-    logDebug "factoryReset()"
-
-    formatCommand(zwave.configurationV1.configurationSet(parameterNumber: 0xFF, size: 4, scaledConfigurationValue: 1))
-    //factory reset
-    configure()
-}
-
 def getDeviceInfo() {
     logDebug "getDeviceInfo()"
 
@@ -838,17 +590,6 @@ def getDeviceInfo() {
             //zwave.manufacturerSpecificV2.deviceSpecificGet().format(),
             formatCommand(zwave.manufacturerSpecificV2.manufacturerSpecificGet())
     ], 200)
-}
-
-private updateStatus() {
-    def sinceTime = ''
-    if (state.energyMeterRuntimeStart != null) {
-        sinceTime = "${getBatteryRuntime()}"
-    } else {
-        sinceTime = now()
-    }
-
-    sendEvent(name: "statusText3", value: "Energy meter since: $sinceTime", displayed: false)
 }
 
 private updateDeviceInfo() {
@@ -861,10 +602,7 @@ private updateDeviceInfo() {
     def buffer = "Get Device Info";
     def newBuffer = null;
 
-    def switchStatus = "SWITCH ENABLED\n"
-    if (switchDisabled) {
-        switchStatus = "SWITCH DISABLED\n"
-    }
+    def switchStatus = "SWITCH DISABLED\n"
 
     if (state.deviceInfo['applicationVersion'] == null ||
         state.deviceInfo['manufacturerName'] == null) {
@@ -898,39 +636,6 @@ private updateDeviceInfo() {
     return sendEvent(name: "deviceInfo", value: "$newBuffer", displayed: false)
 }
 
-private getBatteryRuntime() {
-    def currentmillis = now() - state.energyMeterRuntimeStart
-    def days = 0
-    def hours = 0
-    def mins = 0
-    def secs = 0
-    secs = (currentmillis / 1000).toInteger()
-    mins = (secs / 60).toInteger()
-    hours = (mins / 60).toInteger()
-    days = (hours / 24).toInteger()
-    secs = (secs - (mins * 60)).toString().padLeft(2, '0')
-    mins = (mins - (hours * 60)).toString().padLeft(2, '0')
-    hours = (hours - (days * 24)).toString().padLeft(2, '0')
-
-    if (days > 0) {
-        return "$days days and $hours:$mins:$secs"
-    } else {
-        return "$hours:$mins:$secs"
-    }
-}
-
-private getBatteryRuntimeInHours() {
-    def currentmillis = now() - state.energyMeterRuntimeStart
-    def days = 0
-    def hours = 0
-    def mins = 0
-    def secs = 0
-    secs = (currentmillis / 1000)
-    mins = (secs / 60)
-    hours = (mins / 60)
-    return hours
-}
-
 void logDebug(str) {
     if (isLogLevelDebug) {
         log.debug str
@@ -941,37 +646,6 @@ void logTrace(str) {
     if (isLogLevelTrace) {
         log.trace str
     }
-}
-
-def nightLight() {
-    logDebug "in set nightlight mode"
-    sendEvent(name: "deviceMode", value: "nightLight", displayed: true)
-    setDeviceMode(2)
-}
-
-def energy() {
-    logDebug "in set energy mode"
-    sendEvent(name: "deviceMode", value: "energy", displayed: true)
-    setDeviceMode(0)
-}
-
-def momentary() {
-    logDebug "in momentary mode"
-    sendEvent(name: "deviceMode", value: "momentary", displayed: true)
-    setDeviceMode(1)
-}
-
-def setDeviceMode(mode) {
-    logTrace "set current mode to '$mode'"
-    formatCommand(zwave.configurationV1.configurationSet(parameterNumber: 0x51, size: 1, scaledConfigurationValue: mode))
-}
-
-def setBrightnessLevel(newLevel) {
-    logDebug "in set setlevel newlevel = '$newLevel'"
-    sendEvent(name: "brightnessLevel", value: newLevel.toInteger(), displayed: true)
-
-    // There seems to have an error in the documentation where this config should be a size = 1
-    formatCommand(zwave.configurationV1.configurationSet(parameterNumber: 0x54, size: 3, configurationValue: [newLevel, newLevel, newLevel]))
 }
 
 def formatCommand(physicalgraph.zwave.Command cmd) {
