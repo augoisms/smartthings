@@ -19,7 +19,7 @@
 
 metadata {
 
-	definition(name: "RainforestEagle", namespace: "augoisms", author: "Justin Walker") {
+	definition(name: "Rainforest Handler", namespace: "augoisms", author: "Justin Walker") {
 		capability "Power Meter"
 		capability "Refresh"
 		capability "Sensor"
