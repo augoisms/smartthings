@@ -18,7 +18,7 @@
  */
  
 definition(
-	name: "Rainforest Eagle Manager",
+	name: "Rainforest Manager",
 	namespace: "augoisms",
 	author: "Justin Walker",
 	description: "Monitor your whole-house energy use by connecting to your Rainforest Eagle",
