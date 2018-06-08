@@ -16,6 +16,7 @@ preferences {
 	section("When to trigger notification") {
 		input "tempDelta", "number", title: "Temperature delta"
         input "afterTimeInput", "time", title: "After this time", required: true
+		input "notifyClose", "bool", title: "Also notify to close the windows?"
 	}
     section( "Notifications" ) {
         input("recipients", "contact", title: "Send notifications to") {
@@ -24,7 +25,7 @@ preferences {
         }
     }
     section("Then flash..."){
-		input "switches", "capability.switch", title: "These lights", multiple: true
+		input "switches", "capability.switch", title: "These lights", multiple: true, required: false
 		input "numFlashes", "number", title: "This number of times (default 3)", required: false
 	}
 	section("Time settings in milliseconds (optional)..."){
@@ -59,12 +60,13 @@ def temperatureHandler(evt) {
     // first validate the outside temp
     // wunderground will often send incorrect data so if the difference
     // between the last update is too large, let's just ignore it
-    def lastOutsideTemp = state.lastOutsideTemp ?: outsideTemp
-    // save outside temp for future reference
-    state.lastOutsideTemp = outsideTemp
+    def lastOutsideTemp = state.lastOutsideTemp ?: outsideTemp    
     if(Math.abs(lastOutsideTemp - outsideTemp) > 5 ) {	
+		log.debug "outside temp has changed more than 5 degrees. Ignoring"
     	return
     }
+	// save outside temp for future reference
+    state.lastOutsideTemp = outsideTemp
     
     // calculate the temp difference
     def tempDiff = insideTemp - outsideTemp
@@ -77,20 +79,37 @@ def temperatureHandler(evt) {
 	if (tempDiff >= tempDelta && isAfterTime) {
 		log.debug "Temperature is below the threshold"
 
-		if (state.notificationSent) {
+		if (state.notificationOpenWindowsSent) {
 			log.debug "Notification already sent today"
 		} else {
 			log.debug "Temperature delta is >= $tempDelta:  sending notification"
 			def tempScale = location.temperatureScale ?: "F"
             // send the message
-			send("It's ${outsideTemp}${tempScale} outside. Open the windows")
+			send("It's ${outsideTemp}${tempScale} outside. Open the windows", "notificationOpenWindowsSent")
+            // flash the lights
+			flashLights()
+		}
+	}
+
+	// check if the inside temp has reached the outside temp and notify to close the windows
+	// don't send if we've already notified to open the windows
+	if (outsideTemp >= insideTemp) {
+		log.debug "Inside temp is now at or above outside temp"
+
+		if(!notifyClose || state.notificationOpenWindowsSent || state.notificationCloseWindowsSent) {
+			log.debug "Notification already sent today or is disabled"
+		} else {
+			log.debug "Sending close windows notification"
+			def tempScale = location.temperatureScale ?: "F"
+            // send the message
+			send("It's ${insideTemp}${tempScale} inside and ${outsideTemp}${tempScale} outside. Close the windows", "notificationCloseWindowsSent")
             // flash the lights
 			flashLights()
 		}
 	}
 }
 
-private send(msg) {
+private send(msg, stateKey) {
     if (location.contactBookEnabled) {
         log.debug("sending notifications to: ${recipients?.size()}")
         sendNotificationToContacts(msg, recipients)
@@ -108,7 +127,7 @@ private send(msg) {
     }
     
     // set state variable and reset at midnight
-    state.notificationSent = true;
+    state[stateKey] = true;
     runOnce(getMidnight(), midnightReset)
 
     log.debug msg
@@ -116,7 +135,8 @@ private send(msg) {
 
 def midnightReset() {
 	log.debug "midnightReset()"
-	state.notificationSent = false;
+	state.notificationOpenWindowsSent = false;
+	state.notificationCloseWindowsSent = false;
 }
 
 def getMidnight() {
